@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import math
 from lmfit.models import QuadraticModel, LinearModel
 import lmfit as lm
-import PyQt6.QtGui
+from PyQt6.QtGui import QTextDocument
 
 def Gaussian(x, amp, cen, wid, off):
     """1-d Gaussian: gaussian(x, amp, cen, wid, off)"""
@@ -101,7 +101,7 @@ def main(baseDir, numImages, window, timeSplit):
     window.analysisWidget.axes[2][1].scatter(axis_pts_ms, ysigma)
     print(out.fit_report(min_correl=0.25))
 
-    text = PyQt6.QtGui.QTextDocument()
+    text = QTextDocument()
     text.setPlainText(runningString)
     window.fitText.setDocument(text)
 

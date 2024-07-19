@@ -38,6 +38,11 @@ import time
 import MotTemp
 import math
 import numpy as np
+import lmfit as lm
+
+def Gaussian(x, amp, cen, wid, off):
+    """1-d Gaussian: gaussian(x, amp, cen, wid, off)"""
+    return amp * np.exp(-((x-cen)/wid)**2) + off
 
 class TriggerType:
     SOFTWARE = 1
@@ -67,56 +72,51 @@ class CamTrigger(threading.Thread):
             for j in range(0, len(image[0])):
                 intensity += image[i][j]
             biny.append(intensity)
-            if biny[peakY] < intensity:
-                peakY = len(biny) - 1
+
+        mod = lm.Model(Gaussian)
+        p_amp = lm.Parameter(name='amp', value=max(biny))
+        p_cen = lm.Parameter(name='cen', value=biny.index(max(biny)))
+        p_wid = lm.Parameter(name='wid', value=100)
+        p_off = lm.Parameter(name='off', value=0.)
+        params = lm.Parameters()
+        params.add_many(p_amp, p_cen, p_wid, p_off)
+        out = mod.fit(np.array(biny), params, x=np.array(list(range(len(biny)))))
+        peakY = math.floor(out.best_values['cen'])
+        stdy = math.floor(out.best_values['wid'])
+        print(out.fit_report())
+        print(stdy)
 
         for j in range(0, len(image[0])):
             intensity = 0
             for i in range(0, len(image)):
                 intensity += image[i][j]
             binx.append(intensity)
-            if binx[peakX] < intensity:
-                peakX = len(binx) - 1
+
+        mod = lm.Model(Gaussian)
+        p_amp = lm.Parameter(name='amp', value=max(binx))
+        p_cen = lm.Parameter(name='cen', value=binx.index(max(binx)))
+        p_wid = lm.Parameter(name='wid', value=50)
+        params = lm.Parameters()
+        params.add_many(p_amp, p_cen, p_wid, p_off)
+        out = mod.fit(np.array(binx), params, x=np.array(list(range(len(binx)))))
+        peakX = math.floor(out.best_values['cen'])
+        stdx = math.floor(out.best_values['wid'])
+        print(out.fit_report())
+        print(stdx)
 
         x1d = []
-        xsum = 0
         y1d = []
-        ysum = 0
         for j in range(0, len(image[peakY])):
             x1d.append(image[peakY][j])
-            xsum += image[peakY][j]
         for i in range(0, len(image)):
             y1d.append(image[i][peakX])
-            ysum += image[i][peakX]
-    
-        px = []
-        py = []
-        mux = 0
-        muy = 0
-
-        for i in range(0, len(x1d)):
-            px.append(x1d[i]/xsum)
-            mux += px[i] * i
-
-        for i in range(0, len(y1d)):
-            py.append(y1d[i]/ysum)
-            muy += py[i] * i
-
-        stdx = 0
-        stdy = 0
-
-        for i in range(0, len(px)):
-            stdx += px[i] * (i - mux)**2
-        for i in range(0, len(py)):
-            stdy += py[i] * (i - muy)**2
-        
-        stdx = math.sqrt(stdx)
-        stdy = math.sqrt(stdy)
 
         for j in range(max(0, math.floor(peakX - (stdx*3))), min(len(image[peakY]), math.floor(peakX + (stdx*3)))):
-            image[peakY][j] = 65535
+            image[max(0, peakY-(3*stdy))][j] = 65535
+            image[min(len(image)-1, peakY+(3*stdy))][j] = 65535
         for i in range(max(0, math.floor(peakY - (stdy*3))), min(len(image), math.floor(peakY + (stdy*3))+1)):
-            image[i][peakX] = 65535
+            image[i][max(0, peakX-(3*stdx))] = 65535
+            image[i][min(len(image[i])-1, peakX+(3*stdx))] = 65535
 
         for i in range(len(image)):
             image[i][peakX] = 65535

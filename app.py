@@ -73,7 +73,7 @@ class MainWindow(QtWidgets.QMainWindow):
         for i in range(3):
             for j in range(2):
                 self.analysisWidget.axes[i][j].clear()
-        subprocess.run(["mkdir", "-p", f"{self.trigPath}Run{self.runCount}"])
+        os.makedirs(f"{self.trigPath}Run{self.runCount}")
         self.camThread = Trigger.CamTrigger(self.tofSplitBox.value(), f"{self.trigPath}Run{self.runCount}/", self.exposureBox.value(), timeSplit, self)
         self.runCount += 1
         self.camThread.start()

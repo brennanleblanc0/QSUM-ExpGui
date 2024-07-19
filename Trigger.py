@@ -128,6 +128,9 @@ class CamTrigger(threading.Thread):
         self.window.camWidget.axes[2].plot(y1d, range(len(y1d)))
 
         self.window.camWidget.axes[0].imshow(image, cmap="gray")
+        self.window.camWidget.axes[0].title.set_text("Camera View")
+        self.window.camWidget.axes[1].title.set_text("X-Axis Profile")
+        self.window.camWidget.axes[2].title.set_text("Y-Axis Profile")
         self.window.camWidget.draw()
         self.window.camWidget.axes[0].cla()
         self.window.camWidget.axes[1].cla()

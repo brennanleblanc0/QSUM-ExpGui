@@ -12,6 +12,7 @@ import os
 import datetime
 import subprocess
 import MotTemp
+import numpy as np
 
 class MplCanvasCam(FigureCanvasQTAgg):
     def __init__(self, parent=None, width=100, height=100, dpi=100):
@@ -59,7 +60,7 @@ class MainWindow(QtWidgets.QMainWindow):
         toolbar = NavigationToolbar2QT(self.analysisWidget, self)
         self.analysisLayout.addWidget(toolbar)
     def runCameraTrigger(self):
-        if self.tofBox.value() == 0.0 or self.tofSplitBox.value() == 0:
+        if self.tofStartBox.value() == 0.0 or self.tofEndBox.value() == 0.0 or self.tofSplitBox.value() == 0:
             QtWidgets.QMessageBox.warning(
                 self,
                 "TOF Warning",
@@ -68,10 +69,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 defaultButton=QtWidgets.QMessageBox.StandardButton.Ok
             )
             return
-        oneSplit = self.tofBox.value() / self.tofSplitBox.value()
-        timeSplit = []
-        for i in range(1, self.tofSplitBox.value() + 1):
-            timeSplit.append(i*oneSplit)
+        timeSplit = list(np.linspace(self.tofStartBox.value(), self.tofEndBox.value(), self.tofSplitBox.value()))
         for i in range(3):
             for j in range(2):
                 self.analysisWidget.axes[i][j].clear()

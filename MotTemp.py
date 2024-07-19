@@ -68,7 +68,7 @@ def main(baseDir, numImages, window, timeSplit):
     out = mod.fit(np.array(centre), pars, x=np.array(axis_pts_ms))
     runningString += f"X-axis Centre Results:\na: {out.best_values['a']}\nb: {out.best_values['b']}\nc: {out.best_values['c']}\n\n"
     window.analysisWidget.axes[1][0].plot(axis_pts_ms, out.best_fit)
-    window.analysisWidget.axes[1][0].scatter(axis_pts_ms, centre)
+    window.analysisWidget.axes[1][0].scatter(axis_pts_ms, centre, c='tab:orange')
     print(out.fit_report(min_correl=0.25))
 
     mod = QuadraticModel()
@@ -77,7 +77,7 @@ def main(baseDir, numImages, window, timeSplit):
     gravity = out.best_values['a'] * 2
     runningString += f"Y-axis Centre Results:\ng: {gravity}m/s^2\nv_y: {out.best_values['b']}m/s\ny_i: {out.best_values['c']}m\n\n"
     window.analysisWidget.axes[1][1].plot(axis_pts_ms, out.best_fit)
-    window.analysisWidget.axes[1][1].scatter(axis_pts_ms, ycentre)
+    window.analysisWidget.axes[1][1].scatter(axis_pts_ms, ycentre, c='tab:orange')
     print(out.fit_report(min_correl=0.25))
 
     mod = LinearModel()
@@ -86,7 +86,7 @@ def main(baseDir, numImages, window, timeSplit):
     temp = 0.5 * ((1.44 * math.pow(10,-25))/(1.38 * math.pow(10,-23))) * math.pow(out.best_values['slope'], 2)
     runningString += f"X-Axis Sigma Results:\nm: {out.best_values['slope']}m/s\nb: {out.best_values['intercept']}m\n Temperature: {temp}K\n\n"
     window.analysisWidget.axes[2][0].plot(axis_pts_ms, out.best_fit)
-    window.analysisWidget.axes[2][0].scatter(axis_pts_ms, sigma)
+    window.analysisWidget.axes[2][0].scatter(axis_pts_ms, sigma, c='tab:orange')
     print(out.fit_report(min_correl=0.25))
 
     mod = lm.Model(Hyperbolic)
@@ -98,15 +98,27 @@ def main(baseDir, numImages, window, timeSplit):
     temp = 0.5 * ((1.44 * math.pow(10,-25))/(1.38 * math.pow(10,-23))) * math.pow(out.best_values['sv'], 2)
     runningString += f"Y-Axis Sigma Results:\ns0: {out.best_values['s0']}\nsv: {out.best_values['sv']}\nTemperature: {temp}K"
     window.analysisWidget.axes[2][1].plot(axis_pts_ms, out.best_fit)
-    window.analysisWidget.axes[2][1].scatter(axis_pts_ms, ysigma)
+    window.analysisWidget.axes[2][1].scatter(axis_pts_ms, ysigma, c='tab:orange')
     print(out.fit_report(min_correl=0.25))
 
     text = QTextDocument()
     text.setPlainText(runningString)
     window.fitText.setDocument(text)
 
-    window.analysisWidget.axes[0][0].plot(axis_pts_ms, amp)
-    window.analysisWidget.axes[0][1].plot(axis_pts_ms, yamp)
+    window.analysisWidget.axes[0][0].scatter(axis_pts_ms, amp, c='tab:orange')
+    window.analysisWidget.axes[0][1].scatter(axis_pts_ms, yamp, c='tab:orange')
+
+    window.analysisWidget.axes[0][0].title.set_text("X-Axis Amplitude")
+    window.analysisWidget.axes[0][1].title.set_text("Y-Axis Amplitude")
+    window.analysisWidget.axes[1][0].title.set_text("X-Axis Centre")
+    window.analysisWidget.axes[1][1].title.set_text("Y-Axis Centre")
+    window.analysisWidget.axes[2][0].title.set_text("X-Axis Sigma")
+    window.analysisWidget.axes[2][1].title.set_text("Y-Axis Sigma")
+    window.analysisWidget.axes[2][0].set_xlabel("Time (s)")
+    window.analysisWidget.axes[2][1].set_xlabel("Time (s)")
+    window.analysisWidget.axes[0][0].set_ylabel("Pixel Intensity")
+    window.analysisWidget.axes[1][0].set_ylabel("Position (m)")
+    window.analysisWidget.axes[2][0].set_ylabel("Position (m)")
     window.analysisWidget.draw()
     
 def findStdDev(file):

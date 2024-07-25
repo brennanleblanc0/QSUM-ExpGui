@@ -13,7 +13,7 @@ def Gaussian(x, amp, cen, wid, off):
 def Hyperbolic(x, s0, sv):
     return np.sqrt(s0**2 + (sv**2 * x**2))
 
-def main(baseDir, numImages, window, timeSplit):
+def main(baseDir, numImages, window, timeSplit, sigmaFactor):
     fileArr = []
     #backArr = []
     for e in range(numImages):
@@ -24,7 +24,10 @@ def main(baseDir, numImages, window, timeSplit):
     x_pos = [None]*len(fileArr)
     y_pos = [None]*len(fileArr)
     for i in range(0, len(fileArr)):
-        plt_x[i], plt_y[i], x_pos[i], y_pos[i] = findStdDev(fileArr[i])
+        window.statusbar.showMessage(f"Processing image {i+1} of {numImages}...")
+        plt_x[i], plt_y[i], x_pos[i], y_pos[i] = findStdDev(fileArr[i], sigmaFactor)
+    
+    window.statusbar.showMessage("Fitting data...")
 
     amp, centre, sigma = [], [], []
     yamp, ycentre, ysigma = [], [], []
@@ -120,85 +123,109 @@ def main(baseDir, numImages, window, timeSplit):
     window.analysisWidget.axes[1][0].set_ylabel("Position (m)")
     window.analysisWidget.axes[2][0].set_ylabel("Position (m)")
     window.analysisWidget.draw()
-    
-def findStdDev(file):
-    image = cv2.imread(file, flags=cv2.IMREAD_ANYDEPTH)
-    image = np.asarray(image, dtype=np.float64)
-    #back1 = cv2.imread(back, flags=cv2.IMREAD_ANYDEPTH)
-    #back1 = np.asarray(back1, dtype=np.float64)
-    back1 = np.zeros((len(image), len(image[0])))
+    window.statusbar.showMessage("Processing finished.")
+
+def getIntegratedBins(image:np.ndarray) -> tuple[list,list]:
     binx = []
     biny = []
-    peakX = 0
-    peakY = 0
     for i in range(0,len(image)):
         intensity = 0
         for j in range(0, len(image[0])):
             intensity += image[i][j]
-            intensity -= back1[i][j]
         biny.append(intensity)
-        if biny[peakY] < intensity:
-            peakY = len(biny) - 1
 
     for j in range(0, len(image[0])):
         intensity = 0
         for i in range(0, len(image)):
             intensity += image[i][j]
-            intensity -= back1[i][j]
         binx.append(intensity)
-        if binx[peakX] < intensity:
-            peakX = len(binx) - 1
 
+    return (binx, biny)
+
+def get1DArray(image:np.ndarray, peakX:int, peakY:int) -> tuple[list,list]:
     x1d = []
-    xsum = 0
     y1d = []
-    ysum = 0
     for j in range(0, len(image[peakY])):
-        x1d.append(image[peakY][j] - back1[peakY][j])
-        xsum += image[peakY][j] - back1[peakY][j]
+        x1d.append(image[peakY][j])
     for i in range(0, len(image)):
-        y1d.append(image[i][peakX] - back1[i][peakX])
-        ysum += image[i][peakX] - back1[i][peakX]
- 
+        y1d.append(image[i][peakX])
+    return (x1d, y1d)
+
+def get1DSum(x1d:list, y1d:list) -> tuple[int, int]:
+    xsum = 0
+    ysum = 0
+    for e in x1d:
+        xsum += e
+    for e in y1d:
+        ysum += e
+    return (xsum, ysum)
+
+def getProbability(x1d:list, y1d:list, xsum:int, ysum:int) -> tuple[list,list]:
     px = []
     py = []
-    mux = 0
-    muy = 0
+    for e in x1d:
+        px.append(e/xsum)
+    for e in y1d:
+        py.append(e/ysum)
+    return (px, py)
 
-    for i in range(0, len(x1d)):
-        px.append(x1d[i]/xsum)
+def getMu(px:list, py:list) -> tuple[float, float]:
+    mux = 0.
+    muy = 0.
+    for i in range(len(px)):
         mux += px[i] * i
-
-    for i in range(0, len(y1d)):
-        py.append(y1d[i]/ysum)
+    for i in range(len(py)):
         muy += py[i] * i
+    return (mux, muy)
 
-    stdx = 0
-    stdy = 0
+def getVariance(px, py, mux, muy) -> tuple[float]:
+    varx = 0.
+    vary = 0.
+    for i in range(len(px)):
+        varx += px[i] * (i - mux)**2
+    for i in range(len(py)):
+        vary += py[i] * (i - muy)**2
+    return (varx, vary)
 
-    for i in range(0, len(px)):
-        stdx += px[i] * (i - mux)**2
-    for i in range(0, len(py)):
-        stdy += py[i] * (i - muy)**2
-    
-    stdx = math.sqrt(stdx)
-    stdy = math.sqrt(stdy)
-
+def getROI(image:np.ndarray, stdx:int, stdy:int, peakX:int, peakY:int, sigmaFactor:int) -> tuple[list, list]:
     roi_x = []
     roi_y = []
+    for j in range(max(0, math.floor(peakX - (stdx*sigmaFactor))), min(len(image[peakY]), math.floor(peakX + (stdx*sigmaFactor)))):
+        roi_x.append(image[peakY][j])
+    for i in range(max(0, math.floor(peakY - (stdy*sigmaFactor))), min(len(image), math.floor(peakY + (stdy*sigmaFactor))+1)):
+        roi_y.append(image[i][peakX])
+    return (roi_x, roi_y)
 
-    roi_x_sum = 0
-    roi_y_sum = 0
+def getStdDev(image:np.ndarray) -> tuple[float,float]:
+    binx, biny = getIntegratedBins(image)
+    peakX = binx.index(max(binx))
+    peakY = biny.index(max(biny))
+    x1d, y1d = get1DArray(image, peakX, peakY)
+    return getROIStdDev(x1d, y1d)
 
-    for j in range(max(0, math.floor(peakX - (stdx*3))), min(len(image[peakY]), math.floor(peakX + (stdx*3)))):
-        roi_x.append(image[peakY][j] - back1[peakY][j])
-        roi_x_sum += image[peakY][j] - back1[peakY][j]
+def getROIStdDev(roi_x:list, roi_y:list) -> tuple[float,float]:
+    xsum, ysum = get1DSum(roi_x, roi_y)
+    px, py = getProbability(roi_x, roi_y, xsum, ysum)
+    mux, muy = getMu(px, py)
+    varx, vary = getVariance(px, py, mux, muy)
+    stdx = math.sqrt(varx)
+    stdy = math.sqrt(vary)
+    return (stdx, stdy)
+    
+def findStdDev(file, sigmaFactor):
+    image = cv2.imread(file, flags=cv2.IMREAD_ANYDEPTH)
+    image = np.asarray(image, dtype=np.float64)
+    binx, biny = getIntegratedBins(image)
+    peakX = binx.index(max(binx))
+    peakY = biny.index(max(biny))
+    stdx, stdy = getStdDev(image)
 
-    for i in range(max(0, math.floor(peakY - (stdy*3))), min(len(image), math.floor(peakY + (stdy*3))+1)):
-        roi_y.append(image[i][peakX] - back1[i][peakX])
-        roi_y_sum += image[i][peakX] - back1[i][peakX]
+    stdx = math.floor(stdx)
+    stdy = math.floor(stdy)
 
-    return (roi_x, roi_y, list(range(max(0, math.floor(peakX - (stdx*3))), min(len(image[0]), math.floor(peakX + (stdx*3))))), list(range(max(0, math.floor(peakY - (stdy*3))), min(len(image), math.floor(peakY + (stdy*3))+1))))
+    roi_x, roi_y = getROI(image, stdx, stdy, peakX, peakY, sigmaFactor)
+
+    return (roi_x, roi_y, list(range(max(0, math.floor(peakX - (stdx*sigmaFactor))), min(len(image[0]), math.floor(peakX + (stdx*sigmaFactor))))), list(range(max(0, math.floor(peakY - (stdy*sigmaFactor))), min(len(image), math.floor(peakY + (stdy*sigmaFactor))+1))))
 
 
 if __name__ == "__main__":

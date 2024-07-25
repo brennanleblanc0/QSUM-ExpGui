@@ -48,8 +48,9 @@ class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, *args, **kargs):
         super(MainWindow, self).__init__(*args, **kargs)
         uic.loadUi("mainwindow.ui", self)
-        curDate = datetime.datetime.now(datetime.timezone.utc).strftime("%m/%d/")
-        self.trigPath = f"{os.getcwd()}/Data/{curDate}"
+        curDate = datetime.datetime.now(datetime.timezone.utc)
+        datePath = curDate.strftime("%Y/%m/%d/")
+        self.trigPath = f"{os.getcwd()}/Data/{datePath}"
         if os.path.exists(self.trigPath):
             self.runCount = 1
             while os.path.exists(f"{self.trigPath}Run{self.runCount}"):
@@ -57,8 +58,24 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             self.runCount = 1
         self.camRunButton.pressed.connect(self.runCameraTrigger)
+        self.camModeCombo.currentIndexChanged.connect(self.camModeChanged)
         toolbar = NavigationToolbar2QT(self.analysisWidget, self)
         self.analysisLayout.addWidget(toolbar)
+        curDay = curDate.day
+        curMonth = curDate.month
+        curYear = curDate.year
+        dateObj = QtCore.QDate(curYear, curMonth, curDay)
+        self.recallDateBox.setDate(dateObj)
+        self.loadTofCheck.stateChanged.connect(self.loadTofChanged)
+    def camModeChanged(self, index):
+        change = True if index == 0 else False
+        self.exposureBox.setEnabled(change)
+        self.recallDateBox.setEnabled(not change)
+        self.recallRunBox.setEnabled(not change)
+        self.loadTofCheck.setEnabled(not change)
+        self.loadTofBox.setEnabled(not change and self.loadTofCheck.isChecked())
+    def loadTofChanged(self):
+        self.loadTofBox.setEnabled(self.loadTofCheck.isChecked())
     def runCameraTrigger(self):
         if self.tofStartBox.value() == 0.0 or self.tofEndBox.value() == 0.0 or self.tofSplitBox.value() == 0:
             QtWidgets.QMessageBox.warning(
@@ -70,14 +87,33 @@ class MainWindow(QtWidgets.QMainWindow):
             )
             return
         timeSplit = list(np.linspace(self.tofStartBox.value(), self.tofEndBox.value(), self.tofSplitBox.value()))
-        for i in range(3):
-            for j in range(2):
-                self.analysisWidget.axes[i][j].clear()
-        os.makedirs(f"{self.trigPath}Run{self.runCount}")
-        self.camThread = Trigger.CamTrigger(self.tofSplitBox.value(), f"{self.trigPath}Run{self.runCount}/", self.exposureBox.value(), timeSplit, self)
-        self.runCount += 1
-        self.camThread.start()
-        # MotTemp.main("./Data/07/12/Run1/", 5, self)
+        if self.camModeCombo.currentIndex() == 0:
+            for i in range(3):
+                for j in range(2):
+                    self.analysisWidget.axes[i][j].clear()
+            os.makedirs(f"{self.trigPath}Run{self.runCount}")
+            self.statusbar.showMessage("Initializing camera...")
+            self.camThread = Trigger.CamTrigger(self.tofSplitBox.value(), f"{self.trigPath}Run{self.runCount}/", self.exposureBox.value(), timeSplit, self.sigmaBox.value(), self)
+            self.runCount += 1
+            self.camThread.start()
+            
+        else:
+            date = self.recallDateBox.date().toPyDate()
+            run = self.recallRunBox.value()
+            dayString = str(date.day) if date.day > 9 else f"0{date.day}"
+            monthString = str(date.month) if date.month > 9 else f"0{date.month}"
+            baseDir = f"{os.getcwd()}/Data/{date.year}/{monthString}/{dayString}/Run{run}/"
+            if not os.path.exists(baseDir):
+                QtWidgets.QMessageBox.warning(
+                    self,
+                    "Recall Warning",
+                    "The specified date and run combination does not exist. Please verify and run again.",
+                    buttons=QtWidgets.QMessageBox.StandardButton.Ok,
+                    defaultButton=QtWidgets.QMessageBox.StandardButton.Ok
+                )
+                return
+            self.camThread = threading.Thread(None, MotTemp.main, None, [baseDir, self.tofSplitBox.value(), self, timeSplit, self.sigmaBox.value()])
+            self.camThread.start()
 
 def main():
     app = QtWidgets.QApplication(sys.argv)

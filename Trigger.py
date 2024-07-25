@@ -52,80 +52,81 @@ class TriggerType:
 CHOSEN_TRIGGER = TriggerType.HARDWARE
 
 class CamTrigger(threading.Thread):
-    def __init__(self, numImages, trigPath, exposureTime, timeSplit, window):
+    def __init__(self, numImages, trigPath, exposureTime, timeSplit, sigmaFactor, window):
         threading.Thread.__init__(self, daemon=True)
         self.numImages = numImages
         self.trigPath = trigPath
         self.exposureTime = exposureTime
         self.timeSplit = timeSplit
+        self.sigmaFactor = sigmaFactor
         self.window = window
     def run(self):
         self.main()
     def drawStdDev(self, image_in):
         image = np.copy(image_in)
-        binx = []
-        biny = []
-        peakX = 0
-        peakY = 0
-        for i in range(0,len(image)):
-            intensity = 0
-            for j in range(0, len(image[0])):
-                intensity += image[i][j]
-            biny.append(intensity)
+        binx, biny = MotTemp.getIntegratedBins(image)
+        peakX = binx.index(max(binx))
+        peakY = biny.index(max(biny))
+        x1d, y1d = MotTemp.get1DArray(image, peakX, peakY)
+        stdx, stdy = MotTemp.getStdDev(image)
 
-        mod = lm.Model(Gaussian)
-        p_amp = lm.Parameter(name='amp', value=max(biny))
-        p_cen = lm.Parameter(name='cen', value=biny.index(max(biny)))
-        p_wid = lm.Parameter(name='wid', value=100)
-        p_off = lm.Parameter(name='off', value=0.)
-        params = lm.Parameters()
-        params.add_many(p_amp, p_cen, p_wid, p_off)
-        out = mod.fit(np.array(biny), params, x=np.array(list(range(len(biny)))))
-        peakY = math.floor(out.best_values['cen'])
-        stdy = math.floor(out.best_values['wid'])
-        print(out.fit_report())
+        stdx = math.floor(stdx)
+        stdy = math.floor(stdy)
+
+        print(stdx)
         print(stdy)
 
-        for j in range(0, len(image[0])):
-            intensity = 0
-            for i in range(0, len(image)):
-                intensity += image[i][j]
-            binx.append(intensity)
+        roi_x, roi_y = MotTemp.getROI(image, stdx, stdy, peakX, peakY, self.sigmaFactor)
 
-        mod = lm.Model(Gaussian)
-        p_amp = lm.Parameter(name='amp', value=max(binx))
-        p_cen = lm.Parameter(name='cen', value=binx.index(max(binx)))
-        p_wid = lm.Parameter(name='wid', value=50)
-        params = lm.Parameters()
-        params.add_many(p_amp, p_cen, p_wid, p_off)
-        out = mod.fit(np.array(binx), params, x=np.array(list(range(len(binx)))))
-        peakX = math.floor(out.best_values['cen'])
-        stdx = math.floor(out.best_values['wid'])
-        print(out.fit_report())
-        print(stdx)
-
-        x1d = []
-        y1d = []
-        for j in range(0, len(image[peakY])):
-            x1d.append(image[peakY][j])
-        for i in range(0, len(image)):
-            y1d.append(image[i][peakX])
-
-        for j in range(max(0, math.floor(peakX - (stdx*3))), min(len(image[peakY]), math.floor(peakX + (stdx*3)))):
-            image[max(0, peakY-(3*stdy))][j] = 65535
-            image[min(len(image)-1, peakY+(3*stdy))][j] = 65535
-        for i in range(max(0, math.floor(peakY - (stdy*3))), min(len(image), math.floor(peakY + (stdy*3))+1)):
-            image[i][max(0, peakX-(3*stdx))] = 65535
-            image[i][min(len(image[i])-1, peakX+(3*stdx))] = 65535
+        for j in range(max(0, math.floor(peakX - (stdx*self.sigmaFactor))), min(len(image[peakY]), math.floor(peakX + (stdx*self.sigmaFactor)))):
+            image[max(0, peakY-(stdy))][j] = 65535
+            image[min(len(image)-1, peakY+(stdy*self.sigmaFactor))][j] = 65535
+        for i in range(max(0, math.floor(peakY - (stdy*self.sigmaFactor))), min(len(image), math.floor(peakY + (stdy*self.sigmaFactor))+1)):
+            image[i][max(0, peakX-(stdx*self.sigmaFactor))] = 65535
+            image[i][min(len(image[i])-1, peakX+(stdx*self.sigmaFactor))] = 65535
 
         for i in range(len(image)):
             image[i][peakX] = 65535
         for j in range(len(image[0])):
             image[peakY][j] = 65535
 
+        np_roi_x = np.asarray(roi_x)
+        min_roi_x = list(np_roi_x - min(roi_x))
+
+        np_roi_y = np.asarray(roi_y)
+        min_roi_y = list(np_roi_y - min(roi_y))
+
+        std_roi_x, std_roi_y = MotTemp.getROIStdDev(min_roi_x, min_roi_y)
+
+        x_pos = list(range(max(0, math.floor(peakX - (stdx*self.sigmaFactor))), min(len(image[0]), math.floor(peakX + (stdx*self.sigmaFactor)))))
+        y_pos = list(range(max(0, math.floor(peakY - (stdy*self.sigmaFactor))), min(len(image), math.floor(peakY + (stdy*self.sigmaFactor))+1)))
+
+        mod = lm.Model(Gaussian)
+        peak = roi_x.index(max(roi_x))
+        p_wid = lm.Parameter(name='wid', value=std_roi_x)
+        p_off = lm.Parameter(name='off', value=min(roi_x))
+        p_amp = lm.Parameter(name='amp', value=roi_x[peak] - min(roi_x))
+        p_cen = lm.Parameter(name='cen', value=(x_pos[peak]))
+        params = lm.Parameters()
+        params.add_many(p_amp, p_cen, p_wid, p_off)
+        out = mod.fit(np.array(roi_x), params, x=np.array(x_pos))
+        self.window.camWidget.axes[1].plot(x_pos, out.best_fit)
+        mod = lm.Model(Gaussian)
+        peak = roi_y.index(max(roi_y))
+        p_wid = lm.Parameter(name='wid', value=std_roi_y)
+        p_off = lm.Parameter(name='off', value=min(roi_y))
+        p_amp = lm.Parameter(name='amp', value=roi_y[peak] - min(roi_y))
+        p_cen = lm.Parameter(name='cen', value=(y_pos[peak]))
+        params = lm.Parameters()
+        params.add_many(p_amp, p_cen, p_wid, p_off)
+        out = mod.fit(np.array(roi_y), params, x=np.array(y_pos))
+        best_fit = list(out.best_fit)
+        best_fit.reverse()
+        self.window.camWidget.axes[2].plot(best_fit, y_pos)
+
         y1d.reverse()
-        self.window.camWidget.axes[1].plot(range(len(x1d)), x1d)
-        self.window.camWidget.axes[2].plot(y1d, range(len(y1d)))
+        self.window.camWidget.axes[1].scatter(range(len(x1d)), x1d, c='tab:orange')
+        self.window.camWidget.axes[2].scatter(y1d, range(len(y1d)), c='tab:orange')
 
         self.window.camWidget.axes[0].imshow(image, cmap="gray")
         self.window.camWidget.axes[0].title.set_text("Camera View")
@@ -373,6 +374,7 @@ class CamTrigger(threading.Thread):
             #processor.SetColorProcessing(PySpin.SPINNAKER_COLOR_PROCESSING_ALGORITHM_HQ_LINEAR)
 
             for i in range(self.numImages):
+                self.window.statusbar.showMessage(f"Waiting on trigger (image {i+1} of {self.numImages})...")
                 try:
 
                     #  Retrieve the next image from the trigger
@@ -420,6 +422,7 @@ class CamTrigger(threading.Thread):
                         #  overwriting those of another.
                         image_result.Save(f"{self.trigPath}{filename}", PySpin.TIFFOption())
                         print('Image saved at %s\n' % filename)
+                        self.window.statusbar.showMessage(f"Captured image {i+1} of {self.numImages}...")
 
                         image_np = image_result.GetNDArray()
 
@@ -609,6 +612,7 @@ class CamTrigger(threading.Thread):
             system.ReleaseInstance()
 
             print('Not enough cameras!')
+            self.window.statusbar.showMessage("Error: Cannot find the camera!")
             return False
 
         # Run example on each camera
@@ -632,7 +636,7 @@ class CamTrigger(threading.Thread):
         # Release system instance
         system.ReleaseInstance()
 
-        MotTemp.main(self.trigPath, self.numImages, self.window, self.timeSplit)
+        MotTemp.main(self.trigPath, self.numImages, self.window, self.timeSplit, self.sigmaFactor)
 
         return result
 

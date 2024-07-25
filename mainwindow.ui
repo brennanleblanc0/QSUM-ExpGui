@@ -151,6 +151,108 @@
                   </item>
                  </layout>
                 </item>
+                <item>
+                 <layout class="QHBoxLayout" name="sigmaLayout">
+                  <item>
+                   <widget class="QLabel" name="sigmaLabel">
+                    <property name="text">
+                     <string>Sigma Factor:</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QSpinBox" name="sigmaBox">
+                    <property name="minimumSize">
+                     <size>
+                      <width>100</width>
+                      <height>0</height>
+                     </size>
+                    </property>
+                    <property name="maximumSize">
+                     <size>
+                      <width>100</width>
+                      <height>16777215</height>
+                     </size>
+                    </property>
+                    <property name="minimum">
+                     <number>1</number>
+                    </property>
+                   </widget>
+                  </item>
+                 </layout>
+                </item>
+                <item>
+                 <layout class="QHBoxLayout" name="recallLayout">
+                  <item>
+                   <widget class="QLabel" name="recallDateLabel">
+                    <property name="text">
+                     <string>Date:</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QDateEdit" name="recallDateBox">
+                    <property name="enabled">
+                     <bool>false</bool>
+                    </property>
+                    <property name="calendarPopup">
+                     <bool>true</bool>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QLabel" name="recallRunLabel">
+                    <property name="text">
+                     <string>Run:</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QSpinBox" name="recallRunBox">
+                    <property name="enabled">
+                     <bool>false</bool>
+                    </property>
+                    <property name="minimum">
+                     <number>1</number>
+                    </property>
+                   </widget>
+                  </item>
+                 </layout>
+                </item>
+                <item>
+                 <layout class="QHBoxLayout" name="singleFileLayout">
+                  <item>
+                   <widget class="QCheckBox" name="loadTofCheck">
+                    <property name="enabled">
+                     <bool>false</bool>
+                    </property>
+                    <property name="text">
+                     <string>Single File</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QLabel" name="loadTofLabel">
+                    <property name="maximumSize">
+                     <size>
+                      <width>50</width>
+                      <height>16777215</height>
+                     </size>
+                    </property>
+                    <property name="text">
+                     <string>TOF:</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QDoubleSpinBox" name="loadTofBox">
+                    <property name="enabled">
+                     <bool>false</bool>
+                    </property>
+                   </widget>
+                  </item>
+                 </layout>
+                </item>
                </layout>
               </widget>
              </item>
@@ -170,7 +272,7 @@
                 </widget>
                </item>
                <item>
-                <widget class="QComboBox" name="camModeButton">
+                <widget class="QComboBox" name="camModeCombo">
                  <property name="maximumSize">
                   <size>
                    <width>100</width>
@@ -184,7 +286,7 @@
                  </item>
                  <item>
                   <property name="text">
-                   <string>Capture</string>
+                   <string>Recall</string>
                   </property>
                  </item>
                 </widget>
